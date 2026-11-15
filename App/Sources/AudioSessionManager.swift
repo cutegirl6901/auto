@@ -6,7 +6,7 @@ enum AudioSessionManager {
     /// session. Read from the audio path, which is not bound to the main actor,
     /// so the flag is guarded by a lock rather than being actor-isolated.
     private static let echoLock = NSLock()
-    nonisolated(unsafe) private static var echoActive = false
+    private static var echoActive = false
 
     static var isEchoCancellationActive: Bool {
         echoLock.lock()
