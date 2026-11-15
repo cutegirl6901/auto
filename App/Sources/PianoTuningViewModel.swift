@@ -25,21 +25,39 @@ final class PianoTuningViewModel: ObservableObject {
     @Published private(set) var errorMessage: String?
     @Published var selectedMIDI: Int = 69
     @Published var useOverpull: Bool = true
+    /// When on, the app works out which key is being played instead of relying
+    /// on the user having picked it first.
+    @Published var isAutoDetecting: Bool = false
 
     /// Tolerance in cents for calling a string in tune.
     var toleranceCents: Double = 3
+
+    /// How far a reading may sit from the chosen key and still count as that
+    /// key. Half a semitone is the natural boundary: inside it the current key
+    /// is still the nearest note, so switching there would only cause the
+    /// target to flicker while a string is being brought into tune.
+    var autoSwitchThresholdCents: Double = 50
 
     private let audioEngine = TunerAudioEngine()
     private let speech = SpeechFeedback()
     private var lastSpokenVerdict: String?
     private var lastSoundAt: Date?
 
-    /// True while our own voice is playing. The phone's speaker leaks straight
-    /// back into the microphone, and at that point the analyser would happily
-    /// report our announcement as if it were a piano string. While this is set,
-    /// only a much louder frame counts as a string, and nothing is spoken again
-    /// until the current sentence ends.
+    /// True while our own voice is playing.
+    ///
+    /// The microphone is ignored completely during this window. A level
+    /// threshold cannot separate the two: a quiet piano note and a loud
+    /// announcement overlap in volume, and the speaker feeds straight back
+    /// into the microphone. Any frame analysed while speaking risks being
+    /// reported as a string, so none are.
     private var isSpeaking = false
+
+    /// Audio is ignored until this moment after speech ends, so the tail of the
+    /// sentence, which is still inside the capture buffer, cannot be read as a
+    /// note. The buffer is about 370 ms long.
+    private var speechCooldownUntil: Date = .distantPast
+
+    private static let speechCooldown: TimeInterval = 0.5
 
     var noteName: String { Note(midi: selectedMIDI).displayName }
 
@@ -72,11 +90,11 @@ final class PianoTuningViewModel: ObservableObject {
                 self?.handle(estimate: estimate, curve: curve)
             }
             isListening = true
-            speak("开始调律 \(noteName)", settings: settings)
+            speak(isAutoDetecting ? "开始调律，请弹奏琴弦" : "开始调律 \(noteName)", settings: settings)
         } catch {
             isListening = false
             errorMessage = TunerAudioEngineError.chineseMessage(for: error)
-            speech.speak("麦克风无法开启", settings: settings)
+            speech.speak("麦克风无法开启", settings: settings, forceAppVoice: true)
         }
     }
 
@@ -85,6 +103,7 @@ final class PianoTuningViewModel: ObservableObject {
         audioEngine.stop()
         isListening = false
         isSpeaking = false
+        speechCooldownUntil = .distantPast
         lastSpokenVerdict = nil
         lastSoundAt = nil
         verdict = .waiting
@@ -95,7 +114,7 @@ final class PianoTuningViewModel: ObservableObject {
     func spokenVerdict() -> String {
         switch verdict {
         case .waiting:
-            return "等待弹奏 \(noteName)"
+            return isAutoDetecting ? "等待弹奏" : "等待弹奏 \(noteName)"
         case .inTune:
             return "\(noteName) 准了"
         case .tooFlat(let cents):
@@ -109,31 +128,27 @@ final class PianoTuningViewModel: ObservableObject {
 
     /// Minimum level to treat a frame as a struck string.
     private static let quietThreshold: Double = 0.006
-
-    /// While our own voice is playing, only a much louder sound can be a real
-    /// string. The speaker re-enters the microphone at a modest level, so a
-    /// piano note right after an announcement still clears this bar while the
-    /// announcement itself does not.
-    private static let speechThreshold: Double = 0.05
+    private static let minimumConfidence: Double = 0.6
 
     private func handle(estimate: PitchEstimate, curve: StretchCurve) {
         guard isListening else { return }
 
+        // Our own voice must never reach the analyser.
         let now = Date()
-        let threshold = isSpeaking ? Self.speechThreshold : Self.quietThreshold
+        guard !isSpeaking, now >= speechCooldownUntil else { return }
 
         guard let frequency = estimate.frequency,
-              estimate.confidence >= 0.6,
-              estimate.rms >= threshold else {
-            // While we are talking, silence means "our voice is playing", not
-            // "the user stopped". Keep the previous reading on screen.
-            if !isSpeaking {
-                let silence = lastSoundAt.map { now.timeIntervalSince($0) } ?? .infinity
-                if silence >= 0.35 { verdict = .waiting }
-            }
+              estimate.confidence >= Self.minimumConfidence,
+              estimate.rms >= Self.quietThreshold else {
+            let silence = lastSoundAt.map { now.timeIntervalSince($0) } ?? .infinity
+            if silence >= 0.35 { verdict = .waiting }
             return
         }
         lastSoundAt = now
+
+        if isAutoDetecting {
+            adoptDetectedNote(for: frequency)
+        }
 
         let target = targetFrequency(curve: curve)
         guard target > 0, let cents = PitchMath.cents(from: frequency, to: target) else {
@@ -150,12 +165,28 @@ final class PianoTuningViewModel: ObservableObject {
         }
     }
 
-    /// Announces the verdict once, and only when it changes, so the user is not
-    /// talked over while adjusting.
+    /// Decides which key is being played while auto-detecting.
     ///
-    /// While our own voice is still playing, the verdict is recorded but not
-    /// spoken. Otherwise a reading taken during an announcement would trigger
-    /// another announcement, and the two would feed each other.
+    /// A reading stays with the currently selected key until it is clearly a
+    /// different note. Snapping to the nearest semitone every frame would make
+    /// the target jump around whenever a string sits near the boundary or the
+    /// detector slips by an octave for a moment.
+    private func adoptDetectedNote(for frequency: Double) {
+        let currentTarget = PitchMath.frequency(forMIDI: Double(selectedMIDI))
+        if currentTarget > 0,
+           let cents = PitchMath.cents(from: frequency, to: currentTarget),
+           abs(cents) <= autoSwitchThresholdCents {
+            return
+        }
+        guard let nearest = PitchMath.nearestNote(to: frequency) else { return }
+        guard nearest.note.midi != selectedMIDI else { return }
+        selectedMIDI = nearest.note.midi
+    }
+
+    /// Announces the verdict once, and only when it changes.
+    ///
+    /// Nothing is spoken while our own voice is playing: a reading taken then
+    /// would trigger another announcement, and the two would feed each other.
     func announceIfChanged(settings: SpeechSettings) {
         let text = spokenVerdict()
         guard text != lastSpokenVerdict else { return }
@@ -168,19 +199,34 @@ final class PianoTuningViewModel: ObservableObject {
         }
     }
 
+    /// Announces which note automatic detection has settled on.
+    ///
+    /// Spoken only after speech has finished, so it cannot be mistaken for a
+    /// string by the analyser.
+    func announceDetectedNote(settings: SpeechSettings) {
+        guard !isSpeaking else { return }
+        guard noteName != lastSpokenVerdict else { return }
+        lastSpokenVerdict = noteName
+        speak(noteName, settings: settings)
+    }
+
     /// Speaks and marks the microphone as busy for the duration.
     private func speak(_ text: String, settings: SpeechSettings) {
         isSpeaking = true
-        speech.speak(text, settings: settings)
+        // Tuner screens must use the app's synthesizer: it reports when speech
+        // finishes, and a VoiceOver announcement would be recorded by the
+        // microphone as if it were a string.
+        speech.speak(text, settings: settings, forceAppVoice: true)
     }
 
     /// Called when our voice finishes.
     ///
-    /// A reading taken during the announcement was recorded but not spoken. If
-    /// it differs from what was just said, speak it now; otherwise stay quiet,
-    /// which also prevents the announcement from triggering another one.
+    /// The microphone stays muted for a further moment so the audio already in
+    /// the capture buffer, which still holds the end of the sentence, is
+    /// discarded rather than analysed as a note.
     private func finishSpeaking(settings: SpeechSettings) {
         isSpeaking = false
+        speechCooldownUntil = Date().addingTimeInterval(Self.speechCooldown)
         guard isListening else { return }
         let current = spokenVerdict()
         guard current != lastSpokenVerdict else { return }

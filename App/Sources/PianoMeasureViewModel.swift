@@ -35,6 +35,12 @@ final class PianoMeasureViewModel: ObservableObject {
     /// capture must not start or continue while our own voice is playing.
     private var isSpeaking = false
 
+    /// Audio stays ignored for a moment after speech ends: the capture buffer
+    /// is about 370 ms long and still holds the tail of the sentence.
+    private var speechCooldownUntil: Date = .distantPast
+
+    private static let speechCooldown: TimeInterval = 0.5
+
     /// How long to listen after the string is played before analysing.
     private let captureWindow: TimeInterval = 0.45
 
@@ -60,7 +66,9 @@ final class PianoMeasureViewModel: ObservableObject {
 
         do {
             speech.onFinish = { [weak self] in
-                self?.isSpeaking = false
+                guard let self else { return }
+                self.isSpeaking = false
+                self.speechCooldownUntil = Date().addingTimeInterval(Self.speechCooldown)
             }
             try audioEngine.start { [weak self] estimate, samples, sampleRate in
                 self?.handle(estimate: estimate, samples: samples, sampleRate: sampleRate)
@@ -68,11 +76,11 @@ final class PianoMeasureViewModel: ObservableObject {
             isListening = true
             stage = .listening
             isSpeaking = true
-            speech.speak("请弹奏 \(Note(midi: selectedMIDI).displayName)", settings: settings)
+            speech.speak("请弹奏 \(Note(midi: selectedMIDI).displayName)", settings: settings, forceAppVoice: true)
         } catch {
             isListening = false
             stage = .failed(TunerAudioEngineError.chineseMessage(for: error))
-            speech.speak("麦克风无法开启", settings: settings)
+            speech.speak("麦克风无法开启", settings: settings, forceAppVoice: true)
         }
     }
 
@@ -82,7 +90,7 @@ final class PianoMeasureViewModel: ObservableObject {
         stopEngine()
         stage = .idle
         isSpeaking = true
-        speech.speak("已取消", settings: settings)
+        speech.speak("已取消", settings: settings, forceAppVoice: true)
     }
 
     func reset(settings: SpeechSettings) {
@@ -93,7 +101,7 @@ final class PianoMeasureViewModel: ObservableObject {
         lastMeasurement = nil
         stage = .idle
         isSpeaking = true
-        speech.speak("已清除全部测量", settings: settings)
+        speech.speak("已清除全部测量", settings: settings, forceAppVoice: true)
     }
 
     private func stopEngine() {
@@ -105,8 +113,9 @@ final class PianoMeasureViewModel: ObservableObject {
     private func handle(estimate: PitchEstimate, samples: [Float], sampleRate: Double) {
         guard isListening else { return }
 
-        // Ignore the microphone entirely while our own prompt is playing.
-        guard !isSpeaking else { return }
+        // Ignore the microphone entirely while our own prompt is playing, and
+        // briefly afterwards while the tail of it is still buffered.
+        guard !isSpeaking, Date() >= speechCooldownUntil else { return }
 
         // Wait for a real attack. A quiet room should not start a measurement.
         guard estimate.frequency != nil, estimate.rms >= 0.006 else { return }

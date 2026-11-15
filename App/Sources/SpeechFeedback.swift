@@ -13,10 +13,18 @@ final class SpeechFeedback: NSObject, ObservableObject, AVSpeechSynthesizerDeleg
         synthesizer.delegate = self
     }
 
+    /// Speaks a line.
+    ///
+    /// `forceAppVoice` bypasses the VoiceOver announcement path. Screens that
+    /// listen to the microphone need it: an announcement gives no completion
+    /// callback, so there is no reliable moment at which listening may resume,
+    /// and the announcement itself would be picked up as input. The app's own
+    /// synthesizer reports exactly when it has finished.
     func speak(
         _ text: String,
         language: String = "zh-CN",
-        settings: SpeechSettings? = nil
+        settings: SpeechSettings? = nil,
+        forceAppVoice: Bool = false
     ) {
         let settings = settings ?? SpeechSettings.load()
         // VoiceOver announcements never touch the synthesizer, so an active
@@ -29,13 +37,17 @@ final class SpeechFeedback: NSObject, ObservableObject, AVSpeechSynthesizerDeleg
         voiceOverFinishTask?.cancel()
         voiceOverFinishTask = nil
         let shouldUseVoiceOver: Bool
-        switch settings.outputMode {
-        case .appVoice:
+        if forceAppVoice {
             shouldUseVoiceOver = false
-        case .automatic:
-            shouldUseVoiceOver = UIAccessibility.isVoiceOverRunning
-        case .voiceOver:
-            shouldUseVoiceOver = UIAccessibility.isVoiceOverRunning
+        } else {
+            switch settings.outputMode {
+            case .appVoice:
+                shouldUseVoiceOver = false
+            case .automatic:
+                shouldUseVoiceOver = UIAccessibility.isVoiceOverRunning
+            case .voiceOver:
+                shouldUseVoiceOver = UIAccessibility.isVoiceOverRunning
+            }
         }
         if shouldUseVoiceOver {
             speakWithVoiceOver(text, interrupting: wasSpeaking)
@@ -100,7 +112,13 @@ final class SpeechFeedback: NSObject, ObservableObject, AVSpeechSynthesizerDeleg
     }
 
     private func startVoiceOverFinishTimer(for text: String) {
-        let estimatedDuration = min(5.0, 0.7 + Double(text.count) * 0.06)
+        // VoiceOver gives no completion callback, so the duration is an
+        // estimate. Chinese speech runs slower than the old per-character
+        // figure allowed for, and finishing early let the app treat a
+        // still-speaking announcement as done and start listening again.
+        // The multiplier is deliberately generous; running slightly long only
+        // delays the next announcement.
+        let estimatedDuration = min(12.0, 1.0 + Double(text.count) * 0.20)
         voiceOverFinishTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(estimatedDuration))
             guard !Task.isCancelled, let self else { return }

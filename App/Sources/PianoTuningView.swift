@@ -23,6 +23,13 @@ struct PianoTuningView: View {
         .onChange(of: model.verdict) { _, _ in
             model.announceIfChanged(settings: appModel.speechSettings)
         }
+        // Automatic detection can change the key without changing the shape of
+        // the reading (still flat, still sharp), so the verdict alone would
+        // miss it and the user would not hear which note was picked up.
+        .onChange(of: model.selectedMIDI) { _, _ in
+            guard model.isAutoDetecting, model.isListening else { return }
+            model.announceDetectedNote(settings: appModel.speechSettings)
+        }
         .onDisappear {
             model.stop(settings: appModel.speechSettings)
         }
@@ -32,18 +39,28 @@ struct PianoTuningView: View {
 
     private var keySection: some View {
         Section("当前音") {
-            Stepper(value: $model.selectedMIDI, in: 21...108) {
-                Text(verbatim: "\(model.noteName)")
+            Toggle(isOn: $model.isAutoDetecting) {
+                Text(verbatim: "自动识别音")
             }
-            .accessibilityLabel(Text(verbatim: "选择要调的音"))
-            .accessibilityValue(Text(verbatim: model.noteName))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(verbatim: "自动识别音"))
+            .accessibilityValue(Text(verbatim: model.isAutoDetecting ? "已开启" : "已关闭"))
+            .accessibilityHint(Text(verbatim: "开启后弹哪个音就自动切到那个音，不用先手动选"))
+
+            if !model.isAutoDetecting {
+                Stepper(value: $model.selectedMIDI, in: 21...108) {
+                    Text(verbatim: "\(model.noteName)")
+                }
+                .accessibilityLabel(Text(verbatim: "选择要调的音"))
+                .accessibilityValue(Text(verbatim: model.noteName))
+            }
 
             Button {
                 stepOctave(by: 12)
             } label: {
                 Text(verbatim: "向上一个八度")
             }
-            .disabled(model.selectedMIDI + 12 > 108)
+            .disabled(model.isAutoDetecting || model.selectedMIDI + 12 > 108)
             .accessibilityLabel(Text(verbatim: "向上一个八度"))
 
             Button {
@@ -51,7 +68,7 @@ struct PianoTuningView: View {
             } label: {
                 Text(verbatim: "向下一个八度")
             }
-            .disabled(model.selectedMIDI - 12 < 21)
+            .disabled(model.isAutoDetecting || model.selectedMIDI - 12 < 21)
             .accessibilityLabel(Text(verbatim: "向下一个八度"))
         }
     }
