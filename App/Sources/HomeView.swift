@@ -72,10 +72,10 @@ struct HomeView: View {
             }
 
             Section("版本") {
-                Text(verbatim: "0.9.1 修复定时暂停后重新计时 2026-11-14")
+                Text(verbatim: "0.10.0 自动识别音与回声消除 2026-11-15")
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(Text(verbatim: "0.9.1 修复定时暂停后重新计时，构建日期 2026 年 11 月 14 日"))
-                    .accessibilityIdentifier("NOTE_BOUNDARY_2026_11_14_B")
+                    .accessibilityLabel(Text(verbatim: "0.10.0 自动识别音与回声消除，构建日期 2026 年 11 月 15 日"))
+                    .accessibilityIdentifier("NOTE_BOUNDARY_2026_11_15")
             }
 
             Section("当前乐器") {
