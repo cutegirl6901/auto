@@ -225,10 +225,15 @@ struct MetronomeView: View {
         }
         if let timer = metronome.runTimer, timer.duration > 0 {
             let pending = timer.remainingOrPending()
-            if pending < timer.duration {
-                return "已暂停，还剩 " + Self.formatDuration(pending)
+            guard pending < timer.duration else {
+                return "已设为 " + Self.formatDuration(timer.duration)
             }
-            return "已设为 " + Self.formatDuration(timer.duration)
+            // The metronome has no pause, only stop, so say what is really
+            // happening: the countdown is frozen or still running.
+            let running = metronome.timerPauseBehaviour == .wallClock
+            return running
+                ? "计时中，还剩 " + Self.formatDuration(pending)
+                : "已停止，还剩 " + Self.formatDuration(pending)
         }
         return "未设置"
     }

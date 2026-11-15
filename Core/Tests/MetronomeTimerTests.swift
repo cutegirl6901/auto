@@ -89,6 +89,36 @@ final class MetronomeTimerTests: XCTestCase {
         XCTAssertEqual(timer.remaining(at: date(600)) ?? 0, 300, accuracy: 0.001)
     }
 
+    func testWallClockRemainingDropsWhileStopped() {
+        // Under the wall-clock behaviour the deadline is kept while stopped,
+        // so remaining time must keep falling. A frozen value here is what
+        // made the display look paused and then jump on resume.
+        var timer = MetronomeTimer(duration: 600)
+        timer.start(from: date(0))
+        timer.pause(bankingElapsed: false, at: date(60))
+        XCTAssertEqual(timer.remaining(at: date(60)) ?? 0, 540, accuracy: 0.001)
+        XCTAssertEqual(timer.remaining(at: date(180)) ?? 0, 420, accuracy: 0.001)
+        XCTAssertTrue(timer.hasExpired(at: date(600)))
+    }
+
+    func testPlayingTimeRemainingStaysFrozenWhileStopped() {
+        var timer = MetronomeTimer(duration: 600)
+        timer.start(from: date(0))
+        timer.pause(bankingElapsed: true, at: date(60))
+        XCTAssertNil(timer.remaining(at: date(60)))
+        XCTAssertEqual(timer.remainingOrPending(at: date(60)), 540, accuracy: 0.001)
+        XCTAssertEqual(timer.remainingOrPending(at: date(180)), 540, accuracy: 0.001)
+    }
+
+    func testStoppingTwiceDoesNotRewind() {
+        // Pressing stop again while already stopped must not restart the clock.
+        var timer = MetronomeTimer(duration: 600)
+        timer.start(from: date(0))
+        timer.pause(bankingElapsed: false, at: date(60))
+        timer.pause(bankingElapsed: false, at: date(120))
+        XCTAssertEqual(timer.remaining(at: date(180)) ?? 0, 420, accuracy: 0.001)
+    }
+
     func testRepeatedStartDoesNotReset() {
         // Calling start while already running must be a no-op, or a rebuild
         // of the audio engine would silently restart the countdown.

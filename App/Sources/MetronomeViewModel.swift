@@ -137,13 +137,26 @@ final class MetronomeViewModel: ObservableObject {
         restartTask = nil
         playTimeTask?.cancel()
         playTimeTask = nil
-        timerTask?.cancel()
-        timerTask = nil
         // Pause the countdown rather than clearing it, so starting again
         // continues where it left off instead of handing back a full duration.
         // Which parts of the pause count is the user's choice.
-        runTimer?.pause(bankingElapsed: timerPauseBehaviour == .playingTime)
-        remainingSeconds = nil
+        let banking = timerPauseBehaviour == .playingTime
+        runTimer?.pause(bankingElapsed: banking)
+
+        if banking {
+            // The clock is frozen while stopped, so nothing is counting down.
+            timerTask?.cancel()
+            timerTask = nil
+            remainingSeconds = nil
+        } else {
+            // The pause still counts, so the countdown keeps running while
+            // stopped. Freezing the display here used to show a stale time
+            // that jumped forward the moment play resumed.
+            remainingSeconds = runTimer?.remaining()
+            if runTimer?.isRunning == true {
+                startTimerTicking()
+            }
+        }
         hapticTask?.cancel()
         hapticTask = nil
         engine.stop()
@@ -275,14 +288,23 @@ final class MetronomeViewModel: ObservableObject {
 
     /// Called at the end of a countdown: stop playback and say why.
     private func finishRunTimer() {
-        // Clear the task reference first: stop() cancels it, and cancelling the
-        // task from inside itself would abort the lines after it.
+        // Clear the task reference first: stop() may cancel it, and cancelling
+        // the task from inside itself would abort the lines after it.
         timerTask = nil
         runTimer?.cancel()
         remainingSeconds = nil
-        stop()
-        statusText = "定时结束"
-        speak("定时结束，节拍器已停止")
+
+        if isPlaying {
+            stop()
+            statusText = "定时结束"
+            speak("定时结束，节拍器已停止")
+        } else {
+            // The countdown can now reach zero while stopped, because the
+            // wall-clock behaviour keeps it running. Say so, but do not call
+            // stop() again: that would start the countdown over.
+            statusText = "定时结束"
+            speak("定时结束")
+        }
     }
 
     func resetDefaults() {
