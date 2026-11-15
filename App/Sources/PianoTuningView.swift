@@ -18,6 +18,7 @@ struct PianoTuningView: View {
             controlSection
             readingSection
             overpullSection
+            speechSection
         }
         .navigationTitle("钢琴调律")
         .onChange(of: model.verdict) { _, _ in
@@ -124,6 +125,24 @@ struct PianoTuningView: View {
         } footer: {
             Text(verbatim: "整架琴需要整体升音时开启；只微调单根弦时可以关闭")
         }
+    }
+
+    /// Explains whether this device can keep listening while it speaks.
+    private var speechSection: some View {
+        Section {
+            Text(verbatim: speechCompatibilityText)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(verbatim: "语音兼容"))
+                .accessibilityValue(Text(verbatim: speechCompatibilityText))
+        }
+    }
+
+    private var speechCompatibilityText: String {
+        model.hasEchoCancellation
+            ? "这台设备支持回声消除，播报时也能继续检测。"
+            : "这台设备不支持回声消除。播报期间会暂停检测，播完自动恢复。"
     }
 
     // MARK: - Helpers

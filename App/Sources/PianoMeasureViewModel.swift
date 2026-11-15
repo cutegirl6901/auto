@@ -113,9 +113,13 @@ final class PianoMeasureViewModel: ObservableObject {
     private func handle(estimate: PitchEstimate, samples: [Float], sampleRate: Double) {
         guard isListening else { return }
 
-        // Ignore the microphone entirely while our own prompt is playing, and
-        // briefly afterwards while the tail of it is still buffered.
-        guard !isSpeaking, Date() >= speechCooldownUntil else { return }
+        // With echo cancellation the speaker's output is subtracted from the
+        // input, so a prompt playing does not need to block the capture.
+        // Without it, the microphone is ignored for the whole prompt and for a
+        // moment afterwards while its tail is still buffered.
+        if !AudioSessionManager.isEchoCancellationActive {
+            guard !isSpeaking, Date() >= speechCooldownUntil else { return }
+        }
 
         // Wait for a real attack. A quiet room should not start a measurement.
         guard estimate.frequency != nil, estimate.rms >= 0.006 else { return }

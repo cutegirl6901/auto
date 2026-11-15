@@ -29,6 +29,11 @@ final class PianoTuningViewModel: ObservableObject {
     /// on the user having picked it first.
     @Published var isAutoDetecting: Bool = false
 
+    /// True when this device cancels the speaker's echo in the microphone, so
+    /// listening can continue while the app speaks. Read after the session is
+    /// configured; it stays false on devices that cannot do it.
+    @Published private(set) var hasEchoCancellation = false
+
     /// Tolerance in cents for calling a string in tune.
     var toleranceCents: Double = 3
 
@@ -90,6 +95,7 @@ final class PianoTuningViewModel: ObservableObject {
                 self?.handle(estimate: estimate, curve: curve)
             }
             isListening = true
+            hasEchoCancellation = AudioSessionManager.isEchoCancellationActive
             speak(isAutoDetecting ? "开始调律，请弹奏琴弦" : "开始调律 \(noteName)", settings: settings)
         } catch {
             isListening = false
@@ -128,14 +134,24 @@ final class PianoTuningViewModel: ObservableObject {
 
     /// Minimum level to treat a frame as a struck string.
     private static let quietThreshold: Double = 0.006
+
     private static let minimumConfidence: Double = 0.6
 
     private func handle(estimate: PitchEstimate, curve: StretchCurve) {
         guard isListening else { return }
 
-        // Our own voice must never reach the analyser.
         let now = Date()
-        guard !isSpeaking, now >= speechCooldownUntil else { return }
+
+        // Echo cancellation removes the speaker's output from the input, so
+        // nothing needs to be muted and no extra threshold is needed while
+        // speaking: the string alone is what the analyser sees.
+        //
+        // Without it there is nothing to separate our own voice from a string.
+        // The microphone is then ignored for the whole announcement and for a
+        // moment afterwards, while the tail of it is still buffered.
+        if !AudioSessionManager.isEchoCancellationActive {
+            guard !isSpeaking, now >= speechCooldownUntil else { return }
+        }
 
         guard let frequency = estimate.frequency,
               estimate.confidence >= Self.minimumConfidence,
