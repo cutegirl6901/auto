@@ -30,19 +30,12 @@ struct PianoMeasureView: View {
     // MARK: - Sections
 
     private var keySection: some View {
-        Section("要测的音") {
+        Section {
             Stepper(value: $model.selectedMIDI, in: 21...108) {
                 Text(verbatim: "当前音：\(noteName)")
             }
             .accessibilityLabel(Text(verbatim: "要测的音"))
             .accessibilityValue(Text(verbatim: noteName))
-
-            Text(verbatim: "请依次弹奏需要测量的弦，测得越多，曲线越准")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Text(verbatim: "提示"))
-                .accessibilityValue(Text(verbatim: "请依次弹奏需要测量的弦，测得越多，曲线越准"))
         }
     }
 
@@ -71,7 +64,7 @@ struct PianoMeasureView: View {
     }
 
     private var resultSection: some View {
-        Section("结果") {
+        Section {
             statusRow
         }
     }
@@ -83,14 +76,12 @@ struct PianoMeasureView: View {
             .accessibilityValue(Text(verbatim: statusText))
     }
 
+    /// Only shown once something has been measured; an empty section with its
+    /// own heading is just something to swipe past.
+    @ViewBuilder
     private var progressSection: some View {
-        Section("已测的音") {
-            if model.measurements.isEmpty {
-                Text(verbatim: "还没有测量任何弦")
-                    .foregroundStyle(.secondary)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(Text(verbatim: "还没有测量任何弦"))
-            } else {
+        if !model.measurements.isEmpty {
+            Section {
                 ForEach(measuredKeys, id: \.self) { midi in
                     measuredRow(midi)
                 }

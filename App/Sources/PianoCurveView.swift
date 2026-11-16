@@ -27,7 +27,6 @@ struct PianoCurveView: View {
             templateSection
             regionSection
             keySection
-            sourceSection
         }
         .navigationTitle("钢琴调律曲线")
         .onAppear {
@@ -44,7 +43,9 @@ struct PianoCurveView: View {
             } label: {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(verbatim: model.spokenSummary)
-                    Text(verbatim: "轻点重听")
+                    // The source lives with the summary: it is one line of
+                    // context and does not need a section of its own.
+                    Text(verbatim: "来源：\(curve.source)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -165,14 +166,6 @@ struct PianoCurveView: View {
         }
     }
 
-    private var sourceSection: some View {
-        Section("来源") {
-            Text(verbatim: curve.source)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Text(verbatim: "曲线来源"))
-                .accessibilityValue(Text(verbatim: curve.source))
-        }
-    }
 
     // MARK: - Helpers
 

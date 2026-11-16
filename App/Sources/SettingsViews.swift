@@ -3,74 +3,38 @@ import TuneCore
 
 struct SettingsView: View {
     var body: some View {
+        // One flat list. Every row names its own destination, so the section
+        // headings only added something to swipe past before reaching them.
         List {
-            Section("调音") {
-                NavigationLink {
-                    TuningSettingsView()
-                } label: {
-                    Text(verbatim: "音高、容差和反馈")
-                }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Text(verbatim: "音高、容差和反馈"))
+            Section {
+                settingsLink("音高、容差和反馈") { TuningSettingsView() }
+                settingsLink("参考音和语音") { SoundSettingsView() }
+                settingsLink("语音语速、音调和音量") { SpeechSettingsView() }
             }
-
-            Section("声音") {
-                NavigationLink {
-                    SoundSettingsView()
-                } label: {
-                    Text(verbatim: "参考音和语音")
-                }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Text(verbatim: "参考音和语音"))
-
-                NavigationLink {
-                    SpeechSettingsView()
-                } label: {
-                    Text(verbatim: "语音语速、音调和音量")
-                }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Text(verbatim: "语音语速、音调和音量"))
+            Section {
+                settingsLink("节拍器设置") { MetronomeSettingsView() }
             }
-
-            Section("节拍器") {
-                NavigationLink {
-                    MetronomeSettingsView()
-                } label: {
-                    Text(verbatim: "节拍器设置")
-                }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Text(verbatim: "节拍器设置"))
-            }
-
-            Section("无障碍") {
-                NavigationLink {
-                    AccessibilitySettingsView()
-                } label: {
-                    Text(verbatim: "旁白和触觉")
-                }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Text(verbatim: "旁白和触觉"))
-            }
-
-            Section("其他") {
-                NavigationLink {
-                    OtherSettingsView()
-                } label: {
-                    Text(verbatim: "语言、隐私和恢复默认")
-                }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Text(verbatim: "语言、隐私和恢复默认"))
-
-                NavigationLink {
-                    DiagnosticsView()
-                } label: {
-                    Text(verbatim: "诊断")
-                }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Text(verbatim: "诊断"))
+            Section {
+                settingsLink("旁白和触觉") { AccessibilitySettingsView() }
+                settingsLink("语言、隐私和恢复默认") { OtherSettingsView() }
+                settingsLink("诊断") { DiagnosticsView() }
             }
         }
         .navigationTitle("设置")
+    }
+
+    /// A navigation row whose label is the destination's own name.
+    private func settingsLink<Destination: View>(
+        _ title: String,
+        @ViewBuilder destination: () -> Destination
+    ) -> some View {
+        NavigationLink {
+            destination()
+        } label: {
+            Text(verbatim: title)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: title))
     }
 }
 

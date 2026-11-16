@@ -16,7 +16,6 @@ struct PianoTuningHomeView: View {
         List {
             curveSummarySection
             tuningSection
-            setupSection
             modelSection
         }
         .navigationTitle("钢琴调律")
@@ -46,8 +45,11 @@ struct PianoTuningHomeView: View {
         }
     }
 
+    /// Starting a tuning is the point of the screen, so it comes first; the
+    /// measurement tools share the same block rather than getting a heading of
+    /// their own.
     private var tuningSection: some View {
-        Section("调律") {
+        Section {
             NavigationLink {
                 PianoTuningView()
                     .environmentObject(curveModel)
@@ -57,11 +59,6 @@ struct PianoTuningHomeView: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text(verbatim: "开始调律"))
             .accessibilityHint(Text(verbatim: "按当前曲线逐音调律"))
-        }
-    }
-
-    private var setupSection: some View {
-        Section("准备") {
             NavigationLink {
                 PianoMeasureView()
                     .environmentObject(curveModel)

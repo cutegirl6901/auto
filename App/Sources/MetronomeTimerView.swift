@@ -4,9 +4,9 @@ import UIKit
 
 /// Picks how long the metronome should play.
 ///
-/// Built like the saved tempo list: a full-height list of options, each one
-/// spoken clearly, plus a way to type a custom length. Choosing an option
-/// applies it and closes, so the user is back at the metronome immediately.
+/// Deliberately flat: turn-off first, then the preset lengths, then a custom
+/// entry. Section headings were removed because a screen-reader user hears
+/// every one of them while swiping, and they add nothing over the row labels.
 struct MetronomeTimerView: View {
     @EnvironmentObject private var metronome: MetronomeViewModel
     @Environment(\.dismiss) private var dismiss
@@ -21,9 +21,9 @@ struct MetronomeTimerView: View {
     var body: some View {
         NavigationStack {
             List {
-                presetsSection
-                customSection
-                offSection
+                offRow
+                presetRows
+                customRow
             }
             .navigationTitle("定时")
             .navigationBarTitleDisplayMode(.inline)
@@ -46,13 +46,28 @@ struct MetronomeTimerView: View {
         .presentationDetents([.large])
     }
 
-    // MARK: - Sections
+    // MARK: - Rows
 
-    private var presetsSection: some View {
-        Section("常用时长") {
-            ForEach(TimerDurations.presets) { option in
-                presetRow(option)
-            }
+    /// First row, so turning the timer off is the quickest thing to reach.
+    private var offRow: some View {
+        let isOff = metronome.runTimer == nil
+        return Button {
+            metronome.clearRunTimer()
+            announceAndClose("定时已关闭")
+        } label: {
+            checkRow(title: "不设定时", isSelected: isOff)
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: "不设定时"))
+        .accessibilityValue(Text(verbatim: isOff ? "已选中" : ""))
+        .accessibilityHint(Text(verbatim: "双击关闭定时，节拍器会一直播放"))
+        .accessibilityAddTraits(isOff ? [.isSelected] : [])
+    }
+
+    private var presetRows: some View {
+        ForEach(TimerDurations.presets) { option in
+            presetRow(option)
         }
     }
 
@@ -61,15 +76,7 @@ struct MetronomeTimerView: View {
         return Button {
             choose(seconds: option.seconds, spoken: option.spokenTitle)
         } label: {
-            HStack {
-                Text(verbatim: option.spokenTitle)
-                Spacer()
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .accessibilityHidden(true)
-                }
-            }
-            .contentShape(Rectangle())
+            checkRow(title: option.spokenTitle, isSelected: isSelected)
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
@@ -79,17 +86,31 @@ struct MetronomeTimerView: View {
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 
-    private var customSection: some View {
-        Section("自定义") {
+    private func checkRow(title: String, isSelected: Bool) -> some View {
+        HStack {
+            Text(verbatim: title)
+            Spacer()
+            if isSelected {
+                Image(systemName: "checkmark")
+                    .accessibilityHidden(true)
+            }
+        }
+        .contentShape(Rectangle())
+    }
+
+    private var customRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
             Button {
                 customMinutes = ""
                 customError = nil
                 isShowingCustomInput = true
             } label: {
-                Text(verbatim: "输入分钟数")
+                Text(verbatim: "自定义时长")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Text(verbatim: "输入分钟数"))
+            .accessibilityLabel(Text(verbatim: "自定义时长"))
             .accessibilityHint(Text(verbatim: "输入 1 到 999 之间的整数分钟"))
 
             if let customError {
@@ -97,23 +118,6 @@ struct MetronomeTimerView: View {
                     .font(.footnote)
                     .foregroundStyle(.red)
             }
-        }
-    }
-
-    private var offSection: some View {
-        Section {
-            Button {
-                metronome.clearRunTimer()
-                announceAndClose("定时已关闭")
-            } label: {
-                Text(verbatim: "不设定时")
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Text(verbatim: "不设定时"))
-            .accessibilityHint(Text(verbatim: "双击关闭定时，节拍器会一直播放")
-            )
-        } footer: {
-            Text(verbatim: "定时会在开始播放时开始倒数，到时间自动停止")
         }
     }
 
@@ -175,10 +179,6 @@ struct MetronomeTimerView: View {
     }
 
     /// Says what was chosen, waits long enough for it to be heard, then closes.
-    ///
-    /// Spoken through the metronome so the confirmation arrives on whichever
-    /// channel the user chose; posting only to VoiceOver would silently do
-    /// nothing for someone on app voice.
     private func announceAndClose(_ text: String) {
         metronome.announce(text)
         Task { @MainActor in

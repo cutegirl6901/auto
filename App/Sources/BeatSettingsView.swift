@@ -27,7 +27,7 @@ struct BeatSettingsView: View {
                 }
             }
 
-            Section("定时") {
+            Section("停止节拍器时") {
                 Picker(selection: $metronome.timerPauseBehaviour) {
                     ForEach(TimerPauseBehaviour.allCases) { behaviour in
                         Text(verbatim: behaviour.title)
@@ -35,16 +35,9 @@ struct BeatSettingsView: View {
                             .accessibilityLabel(Text(verbatim: behaviour.spokenTitle))
                     }
                 } label: {
-                    Text(verbatim: "停止节拍器时")
+                    Text(verbatim: "定时")
                 }
                 .pickerStyle(.inline)
-                .accessibilityHint(Text(verbatim: "决定停止节拍器时，定时是否继续走"))
-
-                Text(verbatim: metronome.timerPauseBehaviour == .wallClock
-                    ? "暂停期间也算在定时里，到点就停。"
-                    : "暂停期间不计时，只算实际播放的时长。")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
             }
 
             Section("声音") {
@@ -70,7 +63,7 @@ struct BeatSettingsView: View {
                 .accessibilityHint(Text(verbatim: "开启时显示距离第一个速度结果还差几拍"))
             }
 
-            Section("帮助") {
+            Section {
                 NavigationLink {
                     MetronomeHelpView()
                 } label: {

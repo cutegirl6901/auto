@@ -71,18 +71,20 @@ struct HomeView: View {
                 .accessibilityLabel(Text(verbatim: "设置"))
             }
 
-            Section("版本") {
-                Text(verbatim: "0.10.0 自动识别音与回声消除 2026-11-15")
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(Text(verbatim: "0.10.0 自动识别音与回声消除，构建日期 2026 年 11 月 15 日"))
-                    .accessibilityIdentifier("NOTE_BOUNDARY_2026_11_15")
-            }
-
-            Section("当前乐器") {
+            // One block for the two status lines. The version keeps its
+            // accessibility identifier, which the build checks for.
+            Section {
                 Text(verbatim: "\(appModel.selectedPreset.displayName)\(appModel.selectedTargetDisplayName.map { "，" + $0 } ?? "")")
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(Text(verbatim: "当前乐器"))
                     .accessibilityValue(Text(verbatim: "\(appModel.selectedPreset.displayName)\(appModel.selectedTargetDisplayName.map { "，" + $0 } ?? "")"))
+
+                Text(verbatim: "0.10.0 自动识别音与回声消除 2026-11-15")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(Text(verbatim: "版本 0.10.0，自动识别音与回声消除，构建日期 2026 年 11 月 15 日"))
+                    .accessibilityIdentifier("NOTE_BOUNDARY_2026_11_15")
             }
         }
         .navigationTitle("调音节拍器")

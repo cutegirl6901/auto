@@ -39,7 +39,7 @@ struct PianoTuningView: View {
     // MARK: - Sections
 
     private var keySection: some View {
-        Section("当前音") {
+        Section {
             Toggle(isOn: $model.isAutoDetecting) {
                 Text(verbatim: "自动识别音")
             }
@@ -95,7 +95,7 @@ struct PianoTuningView: View {
     }
 
     private var readingSection: some View {
-        Section("读数") {
+        Section {
             Button {
                 speak(model.spokenVerdict())
             } label: {
@@ -122,27 +122,26 @@ struct PianoTuningView: View {
             .accessibilityLabel(Text(verbatim: "过拉补偿"))
             .accessibilityValue(Text(verbatim: model.useOverpull ? "已开启" : "已关闭"))
             .accessibilityHint(Text(verbatim: "开启后，音偏低时会先拉过头一点，回弹后正好准"))
-        } footer: {
-            Text(verbatim: "整架琴需要整体升音时开启；只微调单根弦时可以关闭")
         }
     }
 
-    /// Explains whether this device can keep listening while it speaks.
+    /// Only shown when this device can keep listening while it speaks.
+    ///
+    /// On devices without echo cancellation the tuner simply pauses while
+    /// speaking, which the user discovers by using it; a permanent line
+    /// explaining the absence is noise on every visit.
+    @ViewBuilder
     private var speechSection: some View {
-        Section {
-            Text(verbatim: speechCompatibilityText)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Text(verbatim: "语音兼容"))
-                .accessibilityValue(Text(verbatim: speechCompatibilityText))
+        if model.hasEchoCancellation {
+            Section {
+                Text(verbatim: "这台设备支持回声消除，播报时也能继续检测。")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(Text(verbatim: "语音兼容"))
+                    .accessibilityValue(Text(verbatim: "这台设备支持回声消除，播报时也能继续检测。"))
+            }
         }
-    }
-
-    private var speechCompatibilityText: String {
-        model.hasEchoCancellation
-            ? "这台设备支持回声消除，播报时也能继续检测。"
-            : "这台设备不支持回声消除。播报期间会暂停检测，播完自动恢复。"
     }
 
     // MARK: - Helpers
