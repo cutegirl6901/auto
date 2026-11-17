@@ -6,7 +6,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-REPOSITORY = "likehao0522cn-gif/auto"
+# Downloads are served from the public store repository. The source repository
+# is private, and SideStore can only fetch releases anonymously, so the
+# installable files must live somewhere public.
+REPOSITORY = "likehao0522cn-gif/tune-store"
 BUNDLE_ID = "com.shm06.TuneMetronome"
 
 # GitHub redirects release downloads to release-assets.githubusercontent.com,

@@ -9,7 +9,7 @@
 SideStore/AltStore 源地址：
 
 ```text
-https://github.com/likehao0522cn-gif/auto/releases/latest/download/source.json
+https://github.com/likehao0522cn-gif/tune-store/releases/latest/download/source.json
 ```
 
 ## 使用步骤
@@ -40,5 +40,5 @@ node scripts/verify-store-release.mjs "$GITHUB_REF_NAME" "$GITHUB_REPOSITORY" --
 本地手动检查当前发布：
 
 ```bash
-node scripts/verify-store-release.mjs v0.5.0 likehao0522cn-gif/auto
+node scripts/verify-store-release.mjs v0.5.0 likehao0522cn-gif/tune-store
 ```

@@ -2,7 +2,9 @@
 
 import { createHash } from "node:crypto";
 
-const DEFAULT_REPO = "likehao0522cn-gif/auto";
+// The published release lives in the public store repository, not the private
+// source repository.
+const DEFAULT_REPO = "likehao0522cn-gif/tune-store";
 const BUNDLE_ID = "com.shm06.TuneMetronome";
 const REQUIRED_ASSETS = ["TuneMetronome.ipa", "source.json", "icon.png"];
 const USER_AGENT = "tune-metronome-release-verifier";

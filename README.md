@@ -27,9 +27,9 @@ The codebase currently includes:
 
 GitHub Actions builds the iOS app, runs the test suites, packages an unsigned IPA, and verifies the SideStore release source:
 
-- Latest release: https://github.com/likehao0522cn-gif/auto/releases/latest
-- Successful tagged build: https://github.com/likehao0522cn-gif/auto/actions/runs/40862124863
-- SideStore source: https://github.com/likehao0522cn-gif/auto/releases/latest/download/source.json
+- Latest release: https://github.com/cutegirl6901/auto/releases/latest
+- Successful tagged build: https://github.com/cutegirl6901/auto/actions/runs/40862124863
+- SideStore source: https://github.com/likehao0522cn-gif/tune-store/releases/latest/download/source.json
 
 ## Install and update without a cable
 
@@ -44,7 +44,7 @@ The test build is distributed through SideStore. The first SideStore installatio
 7. Add this source URL in SideStore:
 
 ```text
-https://github.com/likehao0522cn-gif/auto/releases/latest/download/source.json
+https://github.com/likehao0522cn-gif/tune-store/releases/latest/download/source.json
 ```
 
 8. Install “调音节拍器（测试）”. Future versions can be updated from SideStore without a cable.
