@@ -64,6 +64,17 @@ struct MetronomeView: View {
                         }
 
                     Button {
+                        cancelManualBPMInput()
+                    } label: {
+                        Text(verbatim: "取消")
+                            .frame(minWidth: 48, minHeight: 36)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                    .accessibilityLabel(Text(verbatim: "取消输入"))
+                    .accessibilityHint(Text(verbatim: "放弃这次输入并关闭输入框"))
+
+                    Button {
                         applyManualBPMInput()
                     } label: {
                         Text(verbatim: "确定")
@@ -79,6 +90,13 @@ struct MetronomeView: View {
                 .padding(.vertical, 8)
                 .background(.bar)
             }
+        }
+        // Dismissing the keyboard must also dismiss the input bar. Otherwise
+        // the field stays pinned at the bottom with no way to close it except
+        // leaving the screen.
+        .onChange(of: isBPMInputFocused) { _, focused in
+            guard !focused, isShowingBPMInput else { return }
+            withAnimation { isShowingBPMInput = false }
         }
         .sheet(isPresented: $isShowingFavorites) {
             FavoriteTempoListView()
@@ -133,14 +151,7 @@ struct MetronomeView: View {
     private var secondaryActions: some View {
         VStack(spacing: 12) {
             HStack(spacing: 12) {
-                Button {
-                    isShowingFavorites = true
-                } label: {
-                    secondaryActionLabel("常用速度", systemImage: "star")
-                }
-                .buttonStyle(.bordered)
-                .accessibilityLabel(Text(verbatim: "常用速度"))
-                .accessibilityHint(Text(verbatim: "打开保存好的速度列表"))
+                FavoriteTempoSwipeRow { isShowingFavorites = true }
 
                 NavigationLink {
                     TapTempoView()
@@ -333,6 +344,14 @@ struct MetronomeView: View {
         .accessibilityValue(Text(verbatim: "\(Int(metronome.configuration.bpm)) BPM"))
     }
 
+    /// Abandons the current input without changing the tempo.
+    private func cancelManualBPMInput() {
+        bpmInputError = nil
+        bpmInput = ""
+        metronome.announce("已取消输入")
+        isBPMInputFocused = false
+    }
+
     private func applyManualBPMInput() {
         switch BPMInput.parse(bpmInput) {
         case .success(let bpm):
@@ -340,19 +359,9 @@ struct MetronomeView: View {
             bpmInput = "\(bpm)"
             // Apply the tempo first, so the change takes effect immediately.
             metronome.applyManualBPM(Double(bpm))
-            // Then dismiss. Drop focus so the keyboard animates away, and
-            // remove the bar only after that finishes; hiding the bar in the
-            // same frame as clearing focus pulled the field out from under
-            // the keyboard mid-animation.
+            // Dropping focus closes the keyboard, and the focus observer above
+            // removes the input bar once that has happened.
             isBPMInputFocused = false
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(250))
-                // A new input session may have started in the meantime.
-                guard !isBPMInputFocused else { return }
-                withAnimation {
-                    isShowingBPMInput = false
-                }
-            }
         case .failure(let error):
             let message: String
             switch error {
@@ -369,6 +378,76 @@ struct MetronomeView: View {
                 UIAccessibility.post(notification: .announcement, argument: message)
             }
         }
+    }
+}
+
+/// The saved tempo row: tap to open the list, or swipe up and down to step
+/// through the saved tempos directly. Mirrors how the time signature is
+/// chosen, so both controls behave the same way under VoiceOver.
+private struct FavoriteTempoSwipeRow: View {
+    @EnvironmentObject private var metronome: MetronomeViewModel
+    let onOpenList: () -> Void
+
+    private var tempos: [FavoriteTempo] { metronome.favorites.sortedTempos }
+
+    private var currentIndex: Int? {
+        tempos.firstIndex { $0.bpm == Int(metronome.configuration.bpm) }
+    }
+
+    private var valueText: String {
+        guard !tempos.isEmpty else { return "无" }
+        if let index = currentIndex {
+            return "\(tempos[index].bpm) BPM，第 \(index + 1) 个，共 \(tempos.count) 个"
+        }
+        return "未选中，共 \(tempos.count) 个"
+    }
+
+    var body: some View {
+        Button {
+            onOpenList()
+        } label: {
+            VStack(spacing: 5) {
+                Image(systemName: "star")
+                    .font(.system(size: 18, weight: .semibold))
+                Text(verbatim: "常用速度")
+                    .font(.caption.weight(.semibold))
+            }
+            .frame(maxWidth: .infinity, minHeight: 58)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.bordered)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: "常用速度"))
+        .accessibilityValue(Text(verbatim: valueText))
+        .accessibilityHint(Text(verbatim: "双击打开列表，或上下清扫直接切换"))
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: step(1)
+            case .decrement: step(-1)
+            @unknown default: break
+            }
+        }
+    }
+
+    /// Steps to the next or previous saved tempo.
+    ///
+    /// Wrapping rather than clamping: with only a few saved tempos, hitting the
+    /// end and being unable to continue is more confusing than looping round.
+    private func step(_ delta: Int) {
+        guard !tempos.isEmpty else { return }
+        let count = tempos.count
+        let next: Int
+        if let index = currentIndex {
+            next = (index + delta + count) % count
+        } else {
+            // Not on a saved tempo yet: start from the first one either way.
+            next = delta > 0 ? 0 : count - 1
+        }
+        let bpm = tempos[next].bpm
+        guard bpm != Int(metronome.configuration.bpm) else { return }
+
+        metronome.applyFavoriteTempo(bpm)
+        UISelectionFeedbackGenerator().selectionChanged()
     }
 }
 
