@@ -21,9 +21,14 @@ struct MetronomeView: View {
     var body: some View {
         VStack(spacing: 0) {
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 20) {
                     speedReadout
-                    TimeSignatureSwipeSelector(selection: timeSignatureBinding)
+                    // The two settings used while playing, side by side.
+                    HStack(spacing: 12) {
+                        TimeSignatureSwipeSelector(selection: timeSignatureBinding)
+                        FavoriteTempoSwipeRow { isShowingFavorites = true }
+                    }
+                    // Everything else, in one compact row.
                     secondaryActions
                 }
                 .padding(.horizontal, 20)
@@ -49,7 +54,17 @@ struct MetronomeView: View {
             // could only be set on a field that already existed, so the bar
             // never appeared and no keyboard came up.
             if isShowingBPMInput {
-                HStack(spacing: 10) {
+                VStack(spacing: 6) {
+                    if let bpmInputError {
+                        Text(verbatim: bpmInputError)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(Text(verbatim: "输入错误"))
+                            .accessibilityValue(Text(verbatim: bpmInputError))
+                    }
+                    HStack(spacing: 10) {
                     TextField("输入 20 到 300", text: $bpmInput)
                         .keyboardType(.numberPad)
                         .textFieldStyle(.roundedBorder)
@@ -86,8 +101,9 @@ struct MetronomeView: View {
                     .controlSize(.large)
                     .accessibilityLabel(Text(verbatim: "确定并应用速度"))
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                }
                 .background(.bar)
             }
         }
@@ -148,62 +164,72 @@ struct MetronomeView: View {
         .accessibilityValue(Text(verbatim: "\(Int(metronome.configuration.bpm)) BPM，\(metronome.statusText)"))
     }
 
+    /// The less-used controls, in one row of three so they take a single line
+    /// instead of three.
     private var secondaryActions: some View {
-        VStack(spacing: 12) {
-            FavoriteTempoSwipeRow { isShowingFavorites = true }
-
-            Button {
+        HStack(spacing: 10) {
+            toolButton("定时", systemImage: "timer", value: timerButtonValue) {
                 isShowingTimer = true
-            } label: {
-                secondaryActionLabel(timerButtonTitle, systemImage: "timer")
             }
-            .buttonStyle(.bordered)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Text(verbatim: "定时"))
-            .accessibilityValue(Text(verbatim: timerButtonValue))
-            .accessibilityHint(Text(verbatim: "打开定时设置，可以让节拍器播放指定时长后自动停止"))
 
             NavigationLink {
                 TapTempoView()
             } label: {
-                secondaryActionLabel("测速", systemImage: "metronome")
+                toolLabel("测速", systemImage: "metronome")
             }
             .buttonStyle(.bordered)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text(verbatim: "测速"))
             .accessibilityHint(Text(verbatim: "打开测速页面，按拍子算出速度"))
 
-            // Starts empty: prefilling the current tempo forced users to
-            // delete it before typing a new value.
             Button {
-                bpmInput = ""
-                bpmInputError = nil
-                if !isShowingBPMInput {
-                    withAnimation { isShowingBPMInput = true }
-                }
-                // onAppear on the field sets focus once it exists. Setting it
-                // here as well is harmless and covers the case where the bar
-                // is already on screen.
-                Task { @MainActor in
-                    await Task.yield()
-                    isBPMInputFocused = true
-                }
+                openManualInput()
             } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "keyboard")
-                        .font(.system(size: 18, weight: .semibold))
-                    Text(verbatim: "输入速度")
-                        .font(.subheadline.weight(.semibold))
-                }
-                .frame(maxWidth: .infinity, minHeight: 50)
+                toolLabel("输入速度", systemImage: "keyboard")
             }
             .buttonStyle(.bordered)
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text(verbatim: "输入速度"))
+            .accessibilityHint(Text(verbatim: "手动输入 20 到 300 之间的速度"))
+        }
+    }
 
-            if isShowingBPMInput {
-                manualBPMInput
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-            }
+    private func toolButton(
+        _ title: String,
+        systemImage: String,
+        value: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            toolLabel(title, systemImage: systemImage)
+        }
+        .buttonStyle(.bordered)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: title))
+        .accessibilityValue(Text(verbatim: value))
+        .accessibilityHint(Text(verbatim: "打开定时设置，可以让节拍器播放指定时长后自动停止"))
+    }
+
+    private func toolLabel(_ title: String, systemImage: String) -> some View {
+        VStack(spacing: 3) {
+            Image(systemName: systemImage)
+                .font(.system(size: 16, weight: .semibold))
+            Text(verbatim: title)
+                .font(.caption2)
+        }
+        .frame(maxWidth: .infinity, minHeight: 48)
+    }
+
+    /// Opens the manual tempo bar with an empty field.
+    private func openManualInput() {
+        bpmInput = ""
+        bpmInputError = nil
+        if !isShowingBPMInput {
+            withAnimation { isShowingBPMInput = true }
+        }
+        Task { @MainActor in
+            await Task.yield()
+            isBPMInputFocused = true
         }
     }
     /// What the timer button says. While a countdown runs it shows the time
@@ -267,30 +293,6 @@ struct MetronomeView: View {
         return "\(total) 秒"
     }
 
-    private func secondaryActionLabel(_ title: String, systemImage: String) -> some View {
-        VStack(spacing: 5) {
-            Image(systemName: systemImage)
-                .font(.system(size: 18, weight: .semibold))
-            Text(verbatim: title)
-                .font(.caption.weight(.semibold))
-        }
-        .frame(maxWidth: .infinity, minHeight: 58)
-    }
-
-    /// Only shows validation feedback. The field and its confirm button live in
-    /// the keyboard bar so they sit together like a message composer.
-    private var manualBPMInput: some View {
-        Group {
-            if let bpmInputError {
-                Text(verbatim: bpmInputError)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(Text(verbatim: "输入错误"))
-                    .accessibilityValue(Text(verbatim: bpmInputError))
-            }
-        }
-    }
 
     private var transportControls: some View {
         // Wider spacing than before reduces accidental taps next to the
@@ -382,6 +384,9 @@ struct MetronomeView: View {
 /// The saved tempo row: tap to open the list, or swipe up and down to step
 /// through the saved tempos directly. Mirrors how the time signature is
 /// chosen, so both controls behave the same way under VoiceOver.
+/// A saved-tempo card: the label on top, the value underneath, and the whole
+/// thing adjustable. Laid out like the time signature beside it so the two
+/// read as a pair.
 private struct FavoriteTempoSwipeRow: View {
     @EnvironmentObject private var metronome: MetronomeViewModel
     let onOpenList: () -> Void
@@ -393,17 +398,18 @@ private struct FavoriteTempoSwipeRow: View {
     }
 
     private var valueText: String {
-        guard !tempos.isEmpty else { return "无" }
+        guard !tempos.isEmpty else { return "无常用速度" }
         if let index = currentIndex {
             return "\(tempos[index].bpm) BPM，第 \(index + 1) 个，共 \(tempos.count) 个"
         }
         return "未选中，共 \(tempos.count) 个"
     }
 
-    /// The trailing hint: which saved tempo is in use.
-    private var positionText: String {
-        guard !tempos.isEmpty else { return "无常用速度" }
-        guard let index = currentIndex else { return "共 \(tempos.count) 个" }
+    /// What the card shows: the position when it is a saved tempo, otherwise
+    /// how many are saved.
+    private var displayValue: String {
+        guard !tempos.isEmpty else { return "—" }
+        guard let index = currentIndex else { return "\(tempos.count) 个" }
         return "\(index + 1)/\(tempos.count)"
     }
 
@@ -411,27 +417,7 @@ private struct FavoriteTempoSwipeRow: View {
         Button {
             onOpenList()
         } label: {
-            HStack(spacing: 8) {
-                Text(verbatim: "常用速度")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-                Spacer(minLength: 4)
-
-                Text(verbatim: positionText)
-                    .font(.subheadline)
-                    .foregroundStyle(.tertiary)
-
-                Text(verbatim: "\(Int(metronome.configuration.bpm))")
-                    .font(.title3.weight(.semibold))
-                    .monospacedDigit()
-            }
-            .padding(14)
-            .background(
-                Color(uiColor: .secondarySystemGroupedBackground),
-                in: RoundedRectangle(cornerRadius: 14)
-            )
-            .contentShape(Rectangle())
+            card
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
@@ -445,6 +431,31 @@ private struct FavoriteTempoSwipeRow: View {
             @unknown default: break
             }
         }
+    }
+
+    private var card: some View {
+        VStack(spacing: 2) {
+            Text(verbatim: "常用速度")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            HStack(spacing: 4) {
+                Text(verbatim: displayValue)
+                    .font(.title3.weight(.semibold))
+                    .monospacedDigit()
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 8)
+        .background(
+            Color(uiColor: .secondarySystemGroupedBackground),
+            in: RoundedRectangle(cornerRadius: 14)
+        )
+        .contentShape(Rectangle())
     }
 
     /// Steps to the next or previous saved tempo.
@@ -477,27 +488,25 @@ private struct TimeSignatureSwipeSelector: View {
         Button {
             isShowingPicker = true
         } label: {
-            // The two chevrons used to sit either side of the value and took
-            // up a third of the row. A single chevron on the trailing edge
-            // reads as "this opens something" just as clearly, and the value
-            // lines up with the tempo row below it.
-            HStack(spacing: 8) {
+            // A stacked card matching the saved-tempo card beside it: label on
+            // top, value underneath, one chevron to show it opens something.
+            VStack(spacing: 2) {
                 Text(verbatim: "拍号")
-                    .font(.subheadline)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
-
-                Spacer(minLength: 4)
-
-                Text(verbatim: selection.id)
-                    .font(.title3.weight(.semibold))
-                    .monospacedDigit()
-
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(.tertiary)
-                    .accessibilityHidden(true)
+                HStack(spacing: 4) {
+                    Text(verbatim: selection.id)
+                        .font(.title3.weight(.semibold))
+                        .monospacedDigit()
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.tertiary)
+                        .accessibilityHidden(true)
+                }
             }
-            .padding(14)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .padding(.horizontal, 8)
             .background(
                 Color(uiColor: .secondarySystemGroupedBackground),
                 in: RoundedRectangle(cornerRadius: 14)
