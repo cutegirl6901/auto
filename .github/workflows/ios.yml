@@ -21,7 +21,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "Checked out commit: $(git rev-parse HEAD)"
-          grep -q 'NOTE_BOUNDARY_2026_11_15' App/Sources/HomeView.swift
+          grep -q 'NOTE_BOUNDARY_2026_11_17' App/Sources/HomeView.swift
 
       - name: Run core tests with SwiftPM
         run: |
@@ -115,7 +115,7 @@ jobs:
           set -euo pipefail
           APP_PATH="$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -type d | head -1)"
           test -n "$APP_PATH"
-          grep -a -q 'NOTE_BOUNDARY_2026_11_15' "$APP_PATH/TuneMetronome"
+          grep -a -q 'NOTE_BOUNDARY_2026_11_17' "$APP_PATH/TuneMetronome"
           rm -rf unsigned-ipa
           mkdir -p unsigned-ipa/Payload
           cp -R "$APP_PATH" unsigned-ipa/Payload/
@@ -137,7 +137,7 @@ jobs:
           cp unsigned-ipa/TuneMetronome-unsigned.ipa unsigned-ipa/TuneMetronome.ipa
           SIZE=$(stat -f%z unsigned-ipa/TuneMetronome.ipa)
           # The note SideStore shows for this version. Update it each release.
-          export STORE_VERSION_NOTE="调音节拍器 ${VERSION} 测试版"
+          export STORE_VERSION_NOTE="精简界面：定时页改为先关闭定时再列常用时长，去掉重复的标题；设置、钢琴调律、测量、曲线各页去掉只标注一行的分组标题"
           python3 scripts/generate_store_source.py "$VERSION" "$SIZE" docs/store/source.json
 
       # The installable files have to live in a public repository because
