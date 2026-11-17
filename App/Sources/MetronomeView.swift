@@ -150,17 +150,7 @@ struct MetronomeView: View {
 
     private var secondaryActions: some View {
         VStack(spacing: 12) {
-            HStack(spacing: 12) {
-                FavoriteTempoSwipeRow { isShowingFavorites = true }
-
-                NavigationLink {
-                    TapTempoView()
-                } label: {
-                    secondaryActionLabel("测速", systemImage: "metronome")
-                }
-                .buttonStyle(.bordered)
-                .accessibilityLabel(Text(verbatim: "测速"))
-            }
+            FavoriteTempoSwipeRow { isShowingFavorites = true }
 
             Button {
                 isShowingTimer = true
@@ -173,17 +163,23 @@ struct MetronomeView: View {
             .accessibilityValue(Text(verbatim: timerButtonValue))
             .accessibilityHint(Text(verbatim: "打开定时设置，可以让节拍器播放指定时长后自动停止"))
 
-            // Full-width so the three actions never crowd each other on a
-            // narrow screen, which matters for users who tap by touch.
+            NavigationLink {
+                TapTempoView()
+            } label: {
+                secondaryActionLabel("测速", systemImage: "metronome")
+            }
+            .buttonStyle(.bordered)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(verbatim: "测速"))
+            .accessibilityHint(Text(verbatim: "打开测速页面，按拍子算出速度"))
+
+            // Starts empty: prefilling the current tempo forced users to
+            // delete it before typing a new value.
             Button {
-                // Start empty: prefilling the current BPM forced users to
-                // delete it before typing a new value.
                 bpmInput = ""
                 bpmInputError = nil
                 if !isShowingBPMInput {
-                    withAnimation {
-                        isShowingBPMInput = true
-                    }
+                    withAnimation { isShowingBPMInput = true }
                 }
                 // onAppear on the field sets focus once it exists. Setting it
                 // here as well is harmless and covers the case where the bar
@@ -210,7 +206,6 @@ struct MetronomeView: View {
             }
         }
     }
-
     /// What the timer button says. While a countdown runs it shows the time
     /// left, so a sighted user can glance at it.
     private var timerButtonTitle: String {
@@ -302,7 +297,7 @@ struct MetronomeView: View {
         // play/stop button, which matters most for blind users.
         HStack(spacing: 22) {
             transportButton(systemName: "minus", label: "减小速度", enabled: metronome.configuration.bpm > MetronomeTempo.validBPMRange.lowerBound) {
-                metronome.setBPM(metronome.configuration.bpm - 1)
+                metronome.stepBPM(by: -1)
             }
 
             Button {
@@ -317,7 +312,7 @@ struct MetronomeView: View {
             .accessibilityLabel(Text(verbatim: metronome.isPlaying ? "停止" : "开始"))
 
             transportButton(systemName: "plus", label: "增大速度", enabled: metronome.configuration.bpm < MetronomeTempo.validBPMRange.upperBound) {
-                metronome.setBPM(metronome.configuration.bpm + 1)
+                metronome.stepBPM(by: 1)
             }
         }
         .padding(.horizontal, 20)
@@ -341,7 +336,10 @@ struct MetronomeView: View {
         .controlSize(.large)
         .disabled(!enabled)
         .accessibilityLabel(Text(verbatim: label))
-        .accessibilityValue(Text(verbatim: "\(Int(metronome.configuration.bpm)) BPM"))
+        // No accessibilityValue here. Naming the current tempo alongside
+        // "increase speed" made it read as "increase speed 100", which is
+        // ambiguous: 100 could be where it is or where it is going. The new
+        // tempo is announced after the change instead.
     }
 
     /// Abandons the current input without changing the tempo.
@@ -402,20 +400,40 @@ private struct FavoriteTempoSwipeRow: View {
         return "未选中，共 \(tempos.count) 个"
     }
 
+    /// The trailing hint: which saved tempo is in use.
+    private var positionText: String {
+        guard !tempos.isEmpty else { return "无常用速度" }
+        guard let index = currentIndex else { return "共 \(tempos.count) 个" }
+        return "\(index + 1)/\(tempos.count)"
+    }
+
     var body: some View {
         Button {
             onOpenList()
         } label: {
-            VStack(spacing: 5) {
-                Image(systemName: "star")
-                    .font(.system(size: 18, weight: .semibold))
+            HStack(spacing: 8) {
                 Text(verbatim: "常用速度")
-                    .font(.caption.weight(.semibold))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                Spacer(minLength: 4)
+
+                Text(verbatim: positionText)
+                    .font(.subheadline)
+                    .foregroundStyle(.tertiary)
+
+                Text(verbatim: "\(Int(metronome.configuration.bpm))")
+                    .font(.title3.weight(.semibold))
+                    .monospacedDigit()
             }
-            .frame(maxWidth: .infinity, minHeight: 58)
+            .padding(14)
+            .background(
+                Color(uiColor: .secondarySystemGroupedBackground),
+                in: RoundedRectangle(cornerRadius: 14)
+            )
             .contentShape(Rectangle())
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(verbatim: "常用速度"))
         .accessibilityValue(Text(verbatim: valueText))
@@ -440,7 +458,6 @@ private struct FavoriteTempoSwipeRow: View {
         if let index = currentIndex {
             next = (index + delta + count) % count
         } else {
-            // Not on a saved tempo yet: start from the first one either way.
             next = delta > 0 ? 0 : count - 1
         }
         let bpm = tempos[next].bpm
@@ -450,7 +467,6 @@ private struct FavoriteTempoSwipeRow: View {
         UISelectionFeedbackGenerator().selectionChanged()
     }
 }
-
 private struct TimeSignatureSwipeSelector: View {
     @Binding var selection: TimeSignature
     @State private var isShowingPicker = false
@@ -461,24 +477,23 @@ private struct TimeSignatureSwipeSelector: View {
         Button {
             isShowingPicker = true
         } label: {
-            HStack(spacing: 12) {
+            // The two chevrons used to sit either side of the value and took
+            // up a third of the row. A single chevron on the trailing edge
+            // reads as "this opens something" just as clearly, and the value
+            // lines up with the tempo row below it.
+            HStack(spacing: 8) {
                 Text(verbatim: "拍号")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
-                Spacer(minLength: 8)
-
-                Image(systemName: "chevron.up")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.tertiary)
-                    .accessibilityHidden(true)
+                Spacer(minLength: 4)
 
                 Text(verbatim: selection.id)
                     .font(.title3.weight(.semibold))
                     .monospacedDigit()
 
-                Image(systemName: "chevron.down")
-                    .font(.caption.weight(.bold))
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption2.weight(.bold))
                     .foregroundStyle(.tertiary)
                     .accessibilityHidden(true)
             }

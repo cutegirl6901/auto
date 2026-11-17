@@ -200,6 +200,19 @@ final class MetronomeViewModel: ObservableObject {
         configuration.bpm = MetronomeTempo.clampedBPM(bpm)
     }
 
+    /// Steps the tempo and speaks the result.
+    ///
+    /// Speaks only the number. Saying "speed 101" after the button already
+    /// said "increase speed" made it unclear whether 101 was the current value
+    /// or the one being moved to; a bare number is unambiguous as the new
+    /// tempo.
+    func stepBPM(by delta: Double) {
+        let before = configuration.bpm
+        setBPM(before + delta)
+        guard configuration.bpm != before else { return }
+        speak("\(Int(configuration.bpm))")
+    }
+
     // MARK: - Countdown timer
 
     /// Sets how long the metronome should play, once it is started.
