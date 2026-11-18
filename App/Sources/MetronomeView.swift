@@ -585,6 +585,8 @@ private struct TimeSignaturePicker: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        // Full height, matching the saved tempo list, so both pickers open the
+        // same way instead of one appearing as a half sheet.
+        .presentationDetents([.large])
     }
 }

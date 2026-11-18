@@ -69,39 +69,7 @@ struct FavoriteTempoListView: View {
                     Text(verbatim: "最多保存 \(FavoriteTempoRules.capacity) 个速度。向左滑动可以删除。")
                 }
 
-                Section("添加") {
-                    // Adding the current tempo must not open a keyboard: the
-                    // value is already known, so a text field here was confusing.
-                    Button {
-                        addCurrentTempo()
-                    } label: {
-                        Text(verbatim: "把当前速度 \(Int(metronome.configuration.bpm)) 加入常用")
-                    }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(Text(verbatim: "把当前速度加入常用"))
-                    .accessibilityValue(Text(verbatim: "当前是 \(Int(metronome.configuration.bpm)) BPM"))
-                    .accessibilityHint(Text(verbatim: "双击直接加入，不需要输入"))
 
-                    Button {
-                        newTempoInput = ""
-                        addError = nil
-                        isShowingAddInput = true
-                        Task { @MainActor in
-                            await Task.yield()
-                            isAddFieldFocused = true
-                        }
-                    } label: {
-                        Text(verbatim: "输入其他速度添加")
-                    }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(Text(verbatim: "输入其他速度添加"))
-
-                    if let addError {
-                        Text(verbatim: addError)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
-                    }
-                }
             }
             .navigationTitle("常用速度")
             .navigationBarTitleDisplayMode(.inline)
@@ -119,9 +87,9 @@ struct FavoriteTempoListView: View {
         // Message-composer style: field and confirm share one row above the
         // keyboard, matching where a chat app puts its send button.
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            // Show on isShowingAddInput alone. Requiring focus too was the same
-            // deadlock the metronome screen had: the field only appeared once
-            // focused, but focus needs the field to exist first.
+            // Below the list: either the entry field, or the two add buttons
+            // side by side. The entry field took over the whole bar, so the
+            // buttons only appear when it is closed.
             if isShowingAddInput {
                 HStack(spacing: 10) {
                     TextField("输入 20 到 300", text: $newTempoInput)
@@ -132,6 +100,16 @@ struct FavoriteTempoListView: View {
                         .onAppear { isAddFieldFocused = true }
                         .onSubmit { addTypedTempo() }
                         .accessibilityLabel(Text(verbatim: "输入要添加的速度"))
+
+                    Button {
+                        cancelAddInput()
+                    } label: {
+                        Text(verbatim: "取消")
+                            .frame(minWidth: 48, minHeight: 36)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                    .accessibilityLabel(Text(verbatim: "取消输入"))
 
                     Button {
                         addTypedTempo()
@@ -148,7 +126,15 @@ struct FavoriteTempoListView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
                 .background(.bar)
+            } else {
+                addButtonsBar
             }
+        }
+        // Closing the keyboard also closes the entry bar, the same way the
+        // metronome screen behaves.
+        .onChange(of: isAddFieldFocused) { _, focused in
+            guard !focused, isShowingAddInput else { return }
+            withAnimation { isShowingAddInput = false }
         }
         // A full-height list, not a half sheet. A card that leaves the
         // metronome visible underneath gives a screen-reader user extra
@@ -185,6 +171,64 @@ struct FavoriteTempoListView: View {
     /// Spoken description of a row. The selected tempo says so first, because
     /// that is the single most useful fact while swiping. The statistics come
     /// after, so they never bury the important part.
+    /// The two add actions, side by side under the list.
+    ///
+    /// Adding the current tempo needs no keyboard because the value is already
+    /// known; the other opens a field to type a different one.
+    private var addButtonsBar: some View {
+        VStack(spacing: 6) {
+            if let addError {
+                Text(verbatim: addError)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(Text(verbatim: "添加失败"))
+                    .accessibilityValue(Text(verbatim: addError))
+            }
+            HStack(spacing: 10) {
+                Button {
+                    addCurrentTempo()
+                } label: {
+                    Text(verbatim: "加入当前 \(Int(metronome.configuration.bpm))")
+                        .font(.subheadline.weight(.medium))
+                        .frame(maxWidth: .infinity, minHeight: 40)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(verbatim: "把当前速度加入常用"))
+                .accessibilityValue(Text(verbatim: "当前是 \(Int(metronome.configuration.bpm)) BPM"))
+                .accessibilityHint(Text(verbatim: "双击直接加入，不需要输入"))
+
+                Button {
+                    newTempoInput = ""
+                    addError = nil
+                    isShowingAddInput = true
+                } label: {
+                    Text(verbatim: "输入添加")
+                        .font(.subheadline.weight(.medium))
+                        .frame(maxWidth: .infinity, minHeight: 40)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(verbatim: "输入其他速度添加"))
+                .accessibilityHint(Text(verbatim: "打开输入框，输入要添加的速度"))
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(.bar)
+    }
+
+    /// Abandons the typed tempo without adding it.
+    private func cancelAddInput() {
+        addError = nil
+        newTempoInput = ""
+        metronome.announce("已取消输入")
+        isAddFieldFocused = false
+        withAnimation { isShowingAddInput = false }
+    }
+
     private func describe(_ tempo: FavoriteTempo) -> String {
         var parts: [String] = []
         if isCurrent(tempo) {
@@ -242,15 +286,10 @@ struct FavoriteTempoListView: View {
 
     /// Applies the new tempo first, then lets the keyboard animate away before
     /// the input bar disappears, so the field is not ripped out mid-animation.
+    /// Closes the entry bar. Dropping focus closes the keyboard, and the focus
+    /// observer above hides the bar once that has happened.
     private func dismissAddInput() {
         isAddFieldFocused = false
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(250))
-            guard !isAddFieldFocused else { return }
-            withAnimation {
-                isShowingAddInput = false
-            }
-        }
     }
 
     private func announce(_ text: String) {
