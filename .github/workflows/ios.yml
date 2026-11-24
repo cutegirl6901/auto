@@ -21,7 +21,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "Checked out commit: $(git rev-parse HEAD)"
-          grep -q 'NOTE_BOUNDARY_2026_11_17_B' App/Sources/HomeView.swift
+          grep -q 'NOTE_BOUNDARY_2026_11_24' App/Sources/HomeView.swift
 
       - name: Run core tests with SwiftPM
         run: |
@@ -115,7 +115,7 @@ jobs:
           set -euo pipefail
           APP_PATH="$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -type d | head -1)"
           test -n "$APP_PATH"
-          grep -a -q 'NOTE_BOUNDARY_2026_11_17_B' "$APP_PATH/TuneMetronome"
+          grep -a -q 'NOTE_BOUNDARY_2026_11_24' "$APP_PATH/TuneMetronome"
           rm -rf unsigned-ipa
           mkdir -p unsigned-ipa/Payload
           cp -R "$APP_PATH" unsigned-ipa/Payload/
@@ -137,7 +137,7 @@ jobs:
           cp unsigned-ipa/TuneMetronome-unsigned.ipa unsigned-ipa/TuneMetronome.ipa
           SIZE=$(stat -f%z unsigned-ipa/TuneMetronome.ipa)
           # The note SideStore shows for this version. Update it each release.
-          export STORE_VERSION_NOTE="节拍器界面按常用度重排：拍号和常用速度并排，定时测速输入压成一行；常用速度可上下清扫切换；输入速度可取消；增大减小速度不再误读当前值"
+          export STORE_VERSION_NOTE="拍号选择页改为全屏，和常用速度一致；常用速度的两个添加按钮移到下方并排，去掉多余标题；输入添加时可用取消关闭"
           python3 scripts/generate_store_source.py "$VERSION" "$SIZE" docs/store/source.json
 
       # The installable files have to live in a public repository because

@@ -79,12 +79,12 @@ struct HomeView: View {
                     .accessibilityLabel(Text(verbatim: "当前乐器"))
                     .accessibilityValue(Text(verbatim: "\(appModel.selectedPreset.displayName)\(appModel.selectedTargetDisplayName.map { "，" + $0 } ?? "")"))
 
-                Text(verbatim: "0.10.2 节拍器布局重排 2026-11-17")
+                Text(verbatim: "0.10.3 选择页统一全屏 2026-11-24")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(Text(verbatim: "版本 0.10.2，节拍器布局重排，构建日期 2026 年 11 月 17 日"))
-                    .accessibilityIdentifier("NOTE_BOUNDARY_2026_11_17_B")
+                    .accessibilityLabel(Text(verbatim: "版本 0.10.3，选择页统一全屏，构建日期 2026 年 11 月 24 日"))
+                    .accessibilityIdentifier("NOTE_BOUNDARY_2026_11_24")
             }
         }
         .navigationTitle("调音节拍器")
