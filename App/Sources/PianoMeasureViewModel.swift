@@ -64,6 +64,26 @@ final class PianoMeasureViewModel: ObservableObject {
         capturedSamples.removeAll(keepingCapacity: true)
         captureStartedAt = nil
 
+        // Ask for microphone access first. Without this the prompt never
+        // appears on a fresh install and the capture silently fails.
+        if AVAudioSession.sharedInstance().recordPermission == .undetermined {
+            AVAudioSession.sharedInstance().requestRecordPermission { [weak self] _ in
+                DispatchQueue.main.async {
+                    self?.beginCapture(settings: settings)
+                }
+            }
+            return
+        }
+        beginCapture(settings: settings)
+    }
+
+    /// Starts capturing once permission is known.
+    private func beginCapture(settings: SpeechSettings) {
+        if AVAudioSession.sharedInstance().recordPermission == .denied {
+            stage = .failed("麦克风权限未开启，请到系统设置里允许调音节拍器使用麦克风")
+            speech.speak("麦克风权限未开启", settings: settings, forceAppVoice: true)
+            return
+        }
         do {
             speech.onFinish = { [weak self] in
                 guard let self else { return }

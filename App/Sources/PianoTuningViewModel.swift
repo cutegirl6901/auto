@@ -57,6 +57,9 @@ final class PianoTuningViewModel: ObservableObject {
     /// reported as a string, so none are.
     private var isSpeaking = false
 
+    /// Guards against two permission prompts being requested at once.
+    private var isRequestingPermission = false
+
     /// Audio is ignored until this moment after speech ends, so the tail of the
     /// sentence, which is still inside the capture buffer, cannot be read as a
     /// note. The buffer is about 370 ms long.
@@ -87,6 +90,32 @@ final class PianoTuningViewModel: ObservableObject {
         guard !isListening else { return }
         errorMessage = nil
         verdict = .waiting
+
+        // Ask for microphone access before starting the engine. The engine only
+        // refuses a denied permission; on an undetermined one the system would
+        // never show the prompt and the engine would fail silently.
+        if AVAudioSession.sharedInstance().recordPermission == .undetermined {
+            guard !isRequestingPermission else { return }
+            isRequestingPermission = true
+            AVAudioSession.sharedInstance().requestRecordPermission { [weak self] _ in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    self.isRequestingPermission = false
+                    self.beginListening(curve: curve, settings: settings)
+                }
+            }
+            return
+        }
+        beginListening(curve: curve, settings: settings)
+    }
+
+    /// Starts the engine once permission is known.
+    private func beginListening(curve: StretchCurve, settings: SpeechSettings) {
+        if AVAudioSession.sharedInstance().recordPermission == .denied {
+            errorMessage = "麦克风权限未开启，请到系统设置里允许调音节拍器使用麦克风"
+            speech.speak(errorMessage ?? "", settings: settings, forceAppVoice: true)
+            return
+        }
         do {
             speech.onFinish = { [weak self] in
                 self?.finishSpeaking(settings: settings)

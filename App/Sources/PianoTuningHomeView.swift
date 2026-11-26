@@ -14,9 +14,9 @@ struct PianoTuningHomeView: View {
 
     var body: some View {
         List {
+            startSection
             curveSummarySection
-            tuningSection
-            modelSection
+            settingsSection
         }
         .navigationTitle("钢琴调律")
         .onAppear {
@@ -45,10 +45,8 @@ struct PianoTuningHomeView: View {
         }
     }
 
-    /// Starting a tuning is the point of the screen, so it comes first; the
-    /// measurement tools share the same block rather than getting a heading of
-    /// their own.
-    private var tuningSection: some View {
+    /// The one thing this screen is for.
+    private var startSection: some View {
         Section {
             NavigationLink {
                 PianoTuningView()
@@ -59,59 +57,23 @@ struct PianoTuningHomeView: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text(verbatim: "开始调律"))
             .accessibilityHint(Text(verbatim: "按当前曲线逐音调律"))
-            NavigationLink {
-                PianoMeasureView()
-                    .environmentObject(curveModel)
-            } label: {
-                Text(verbatim: "测量这架琴")
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Text(verbatim: "测量这架琴"))
-            .accessibilityHint(Text(verbatim: "逐根弹奏琴弦，测出这架琴的非谐性"))
-
-            NavigationLink {
-                PianoCurveView()
-                    .environmentObject(curveModel)
-            } label: {
-                Text(verbatim: "查看调律曲线")
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Text(verbatim: "查看调律曲线"))
         }
     }
 
-    private var modelSection: some View {
-        Section("琴型") {
-            ForEach(PianoModelTemplate.all) { template in
-                templateRow(template)
+    /// Preparing the piano and inspecting the curve are occasional jobs, so they
+    /// sit behind one entry rather than filling the first screen.
+    private var settingsSection: some View {
+        Section {
+            NavigationLink {
+                PianoSetupView()
+                    .environmentObject(curveModel)
+            } label: {
+                Text(verbatim: "设置")
             }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(verbatim: "设置"))
+            .accessibilityHint(Text(verbatim: "测量这架琴、查看曲线、选择琴型"))
         }
-    }
-
-    private func templateRow(_ template: PianoModelTemplate) -> some View {
-        let isSelected = curveModel.selectedTemplateID == template.id
-        return Button {
-            curveModel.selectTemplate(template)
-            speak(StretchCurveNarration.summary(for: curveModel.curve))
-        } label: {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(verbatim: template.displayName)
-                    Text(verbatim: template.spokenDescription)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .accessibilityHidden(true)
-                }
-            }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(verbatim: template.displayName))
-        .accessibilityValue(Text(verbatim: isSelected ? "已选择" : "未选择"))
-        .accessibilityHint(Text(verbatim: template.spokenDescription))
     }
 
     private func speak(_ text: String) {

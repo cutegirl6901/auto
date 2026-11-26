@@ -43,9 +43,10 @@ struct PianoTuningView: View {
             Toggle(isOn: $model.isAutoDetecting) {
                 Text(verbatim: "自动识别音")
             }
-            .accessibilityElement(children: .ignore)
+            // No accessibilityElement(children: .ignore) here: it turned the
+            // toggle into a plain element, so double-tapping did nothing and
+            // the switch could never be turned on.
             .accessibilityLabel(Text(verbatim: "自动识别音"))
-            .accessibilityValue(Text(verbatim: model.isAutoDetecting ? "已开启" : "已关闭"))
             .accessibilityHint(Text(verbatim: "开启后弹哪个音就自动切到那个音，不用先手动选"))
 
             if !model.isAutoDetecting {
@@ -118,9 +119,7 @@ struct PianoTuningView: View {
             Toggle(isOn: $model.useOverpull) {
                 Text(verbatim: "过拉补偿")
             }
-            .accessibilityElement(children: .ignore)
             .accessibilityLabel(Text(verbatim: "过拉补偿"))
-            .accessibilityValue(Text(verbatim: model.useOverpull ? "已开启" : "已关闭"))
             .accessibilityHint(Text(verbatim: "开启后，音偏低时会先拉过头一点，回弹后正好准"))
         }
     }
